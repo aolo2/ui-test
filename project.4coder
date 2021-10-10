@@ -1,0 +1,39 @@
+version(1);
+
+project_name = "opengl-test";
+
+patterns = {
+	"*.c",
+	"*.h",
+	"*.4coder",
+};
+
+blacklist_patterns = {
+	".*",
+	"res",
+	"test",
+	"lib",
+    "build/*"
+};
+
+load_paths_base = {
+	{ ".", .relative = true, .recursive = true, },
+	{ "../ttf-test", .relative = true, .recursive = true, }
+};
+
+load_paths = {
+	{ load_paths_base, .os = "linux", }
+};
+
+command_list = {
+	{
+		.name = "build debug",
+   	 .out = "*compilation*",
+		.footer_panel = false,
+		.save_dirty_files = true,
+		.cursor_at_end = true,
+	    .cmd = {{ "./build.sh", .os = "linux" }},
+    },
+};
+	      
+fkey_command[1] = "build debug";
