@@ -471,11 +471,15 @@ static int scrollview_y0;
 static int scrollview_w;
 static int scrollview_h;
 static int scrollview_handle_width;
-static int scrollview_items[] = { 10, 50, 20, 12, 15, 15, 15, 100, 100, 100, 15, 15, 15, 15, 100, 100, 100, 100, 5 };
+static int scrollview_items[] = { 10, 50, 20, 12, 15, 15, 15, 100, 100, 100, 15, 15, 15, 15, 100, 100, 100, 100, 5, 10, 50, 20, 12, 15, 15, 15, 100, 100, 100, 15, 15, 15, 15, 100, 100, 100, 100, 5, 10, 50, 20, 12, 15, 15, 15, 100, 100, 100, 15, 15, 15, 15, 100, 100, 100, 100, 5 };
 static int scrollview_itemcount;
 static int scrollview_scrollbar_width;
 static int scrollview_margin;
 static int scrollview_desired_height;
+static int scrollview_handle_primed;
+static int scrollview_handle_down; 
+static int scrollview_scrollbar_offset;
+static int scrollview_scrollbar_height;
 
 static int
 update_scrollview(int width)
@@ -504,7 +508,10 @@ update_scrollview(int width)
     }
     
     int new_scrollview_offset = scrollview_offset;
+    int new_scrollview_handle_primed = scrollview_handle_primed;
+    int new_scrollview_handle_down = scrollview_handle_down;
     
+    // scrollwheel
     if (scrollview_focused) {
         if (mouse_scrolled_down) {
             new_scrollview_offset += mouse_scroll_speed * mouse_scrolled_down;
@@ -513,30 +520,83 @@ update_scrollview(int width)
         if (mouse_scrolled_up) {
             new_scrollview_offset -= mouse_scroll_speed * mouse_scrolled_up;
         }
-        
-        if (scrollview_offset < 0) {
-            new_scrollview_offset = 0;
-        }
-        
-        if (scrollview_desired_height > scrollview_h && new_scrollview_offset > scrollview_desired_height - scrollview_h) {
-            new_scrollview_offset = scrollview_desired_height - scrollview_h;
-        }
-        
-        // snapping
-        if (new_scrollview_offset < scrolling_threshold) {
-            new_scrollview_offset = 0;
-        }
-        
-        if (scrollview_desired_height > scrollview_h && scrollview_desired_height - scrollview_h - new_scrollview_offset < scrolling_threshold) {
-            new_scrollview_offset = scrollview_desired_height - scrollview_h;
-        }
     }
+    
+    // scroll handle
+    f32 scale = (f32) scrollview_h / (f32) scrollview_desired_height;
+    
+    int new_scrollview_scrollbar_height = scale * scrollview_h;
+    int new_scrollview_scrollbar_offset = scrollview_offset * scale;
+    
+    // mouse on handle
+    if ((scrollview_x0 + scrollview_w - scrollview_scrollbar_width <= mouse_x && mouse_x <= scrollview_x0 + scrollview_w) && (scrollview_y0 + new_scrollview_scrollbar_offset <= mouse_y && mouse_y <= scrollview_y0 + new_scrollview_scrollbar_offset + new_scrollview_scrollbar_height)) {
+        new_scrollview_handle_primed = 1;
+    } else {
+        new_scrollview_handle_primed = 0;
+    }
+    
+    // TODO: more updates than needed (in _primed variable)
+    
+    if (new_scrollview_handle_primed && mouse_down && mouse_halftransitions > 0) {
+        new_scrollview_handle_down = 1;
+    }
+    
+    if (new_scrollview_handle_down && !mouse_down && mouse_halftransitions > 0) {
+        new_scrollview_handle_down = 0;
+    }
+    
+    // mouse moves handle
+    if (new_scrollview_handle_down) {
+        new_scrollview_scrollbar_offset += mouse_dy;
+        new_scrollview_offset += mouse_dy / scale;
+    }
+    
+    // capping
+    if (new_scrollview_offset < 0) {
+        new_scrollview_offset = 0;
+    }
+    
+    if (scrollview_desired_height > scrollview_h && new_scrollview_offset > scrollview_desired_height - scrollview_h) {
+        new_scrollview_offset = scrollview_desired_height - scrollview_h;
+    }
+    
+    // snapping
+    if (new_scrollview_offset < scrolling_threshold) {
+        new_scrollview_offset = 0;
+    }
+    
+    if (scrollview_desired_height > scrollview_h && scrollview_desired_height - scrollview_h - new_scrollview_offset < scrolling_threshold) {
+        new_scrollview_offset = scrollview_desired_height - scrollview_h;
+    }
+    
+    // translate content scroll to handle scroll (MUST be after capping and snapping)
+    new_scrollview_scrollbar_offset = new_scrollview_offset * scale;
     
     int happened = 0;
     
     if (new_scrollview_offset != scrollview_offset) {
         happened = 1;
         scrollview_offset = new_scrollview_offset;
+    }
+    
+    if (new_scrollview_scrollbar_height != scrollview_scrollbar_height) {
+        happened = 1;
+        scrollview_scrollbar_height = new_scrollview_scrollbar_height;
+    }
+    
+    if (new_scrollview_scrollbar_offset != scrollview_scrollbar_offset) {
+        happened = 1;
+        scrollview_scrollbar_offset = new_scrollview_scrollbar_offset;
+    }
+    
+    if (new_scrollview_handle_primed != scrollview_handle_primed) {
+        happened = 1;
+        scrollview_handle_primed = new_scrollview_handle_primed; 
+    }
+    
+    if (new_scrollview_handle_down != scrollview_handle_down) {
+        happened = 1;
+        scrollview_handle_down = new_scrollview_handle_down;
     }
     
     return(happened);

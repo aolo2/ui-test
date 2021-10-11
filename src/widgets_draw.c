@@ -99,10 +99,17 @@ draw_scrollview(u32 *vram, int width)
     draw_rectf(vram, width, scrollview_x0 + scrollview_w - scrollview_handle_width, scrollview_y0, scrollview_handle_width, scrollview_h, 0x222222);
     
     if (scrollview_desired_height > scrollview_h) {
-        f32 scale = (f32) scrollview_h / (f32) scrollview_desired_height;
-        int scrollbar_handle_height = scale * scrollview_h;
-        int scrollbar_offset = scrollview_offset * scale;
-        draw_rectf(vram, width, scrollview_x0 + scrollview_w - scrollview_handle_width, scrollview_y0 + scrollbar_offset, scrollview_handle_width, scrollbar_handle_height, 0x888888);
+        u32 handle_fill = 0x888888;
+        
+        if (scrollview_handle_primed) {
+            handle_fill = 0xaaaaaa;
+        }
+        
+        if (scrollview_handle_down) {
+            handle_fill = 0x666666;
+        }
+        
+        draw_rectf(vram, width, scrollview_x0 + scrollview_w - scrollview_handle_width, scrollview_y0 + scrollview_scrollbar_offset, scrollview_handle_width, scrollview_scrollbar_height, handle_fill);
     }
     
     int item_from = scrollview_margin;

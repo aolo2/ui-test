@@ -14,8 +14,11 @@ static struct ui_rectange dirty[128];
 static int command_count;
 static int ndirty;
 
+static int mouse_first_move = 1;
 static int mouse_x;
 static int mouse_y;
+static int mouse_dx;
+static int mouse_dy;
 static int mouse_down;
 static int mouse_halftransitions;
 static int mouse_scrolled_up;
@@ -149,6 +152,7 @@ draw_widgets(u32 *vram, int width, int height)
     if (happened_radio)      draw_radio();
     if (happened_progress)   draw_progress();
     
+    /* debug only */
     wchar_t presents_as_wstring[32] = { 0 };
     swprintf(presents_as_wstring, 15, L"%.10d", present_count);
     draw_rectf(vram, width, width - 200, textview_y0, 190, 22, 0x222222);
@@ -210,7 +214,10 @@ int main(int argc, char **argv)
         mouse_scrolled_up = 0;
         mouse_scrolled_down = 0;
         mouse_halftransitions = 0;
+        mouse_dx = 0;
+        mouse_dy = 0;
         type_buffer_size = 0;
+        
         
         int expose = 0;
         int only_shm_event = 1;
@@ -227,6 +234,14 @@ int main(int argc, char **argv)
                 --pending_shm;
             } else if (ev.type == MotionNotify) {
                 XMotionEvent motion = ev.xmotion;
+                
+                if (!mouse_first_move) {
+                    mouse_dx += motion.x - mouse_x;
+                    mouse_dy += motion.y - mouse_y;
+                } else {
+                    mouse_first_move = 0;
+                }
+                
                 mouse_x = motion.x;
                 mouse_y = motion.y;
             } else if (ev.type == ButtonPress) {
