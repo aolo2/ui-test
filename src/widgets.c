@@ -6,15 +6,13 @@
 #include "../../ttf-test/ttf_rasterize.c"
 
 static struct ttf_font global_font;
+static int present_count;
 static int number_of_clicks;
 
 static struct ui_command command_buffer[128];
 static struct ui_rectange dirty[128];
 static int command_count;
 static int ndirty;
-
-static int scrollview_focused;
-static int scrollview_offset;
 
 static int mouse_x;
 static int mouse_y;
@@ -25,11 +23,9 @@ static int mouse_scrolled_down;
 static int mouse_scroll_speed = 30;
 static struct keyboard_input type_buffer[256]; // TODO: @overflow
 static int type_buffer_size;
-static int lctrl_down;
-static int rctrl_down;
-static int lalt_down;
-static int ralt_down;
 
+static int scrollview_focused;
+static int scrollview_offset;
 static int scrolling_threshold = 5;
 
 static Display         *display;
@@ -102,9 +98,10 @@ create_window(int width, int height)
 }
 
 static void
-present(int width, int height)
+present(struct ui_rectange rect)
 {
-    XShmPutImage(display, window, default_gc, xwindow_buffer, 0, 0, 0, 0, width, height, True);
+    ++present_count;
+    XShmPutImage(display, window, default_gc, xwindow_buffer, 0, 0, rect.x, rect.y, rect.width, rect.height, True);
     ++pending_shm;
 }
 
@@ -115,13 +112,13 @@ update_widgets(int width, int height)
     happened_textview = update_textview(width);
     happened_checkbox = update_checkbox(width, height);
     happened_editview = update_editview(height);
-    happened_scrollview = update_scrollview();
+    happened_scrollview = update_scrollview(width);
     happened_select = update_select();
     happened_radio = update_radio();
     happened_progress = update_progress();
 }
 
-static void
+static int
 draw_widgets(u32 *vram, int width, int height)
 {
     (void) height;
@@ -130,6 +127,7 @@ draw_widgets(u32 *vram, int width, int height)
     
     if (first_draw) {
         first_draw = 0;
+        
         draw_textview(vram, width);
         draw_button(vram, width);
         draw_checkbox(vram, width);
@@ -138,6 +136,8 @@ draw_widgets(u32 *vram, int width, int height)
         draw_select();
         draw_radio();
         draw_progress();
+        
+        return(1);
     }
     
     if (happened_textview)   draw_textview(vram, width);
@@ -148,6 +148,37 @@ draw_widgets(u32 *vram, int width, int height)
     if (happened_select)     draw_select();
     if (happened_radio)      draw_radio();
     if (happened_progress)   draw_progress();
+    
+    wchar_t presents_as_wstring[32] = { 0 };
+    swprintf(presents_as_wstring, 15, L"%.10d", present_count);
+    draw_rectf(vram, width, width - 200, textview_y0, 190, 22, 0x222222);
+    render_utf_string(global_font, 22, vram, width, presents_as_wstring, 200, width - 200, textview_y0, 0xffffff);
+    
+    int happened = (happened_textview || happened_button || happened_checkbox ||
+                    happened_editview || happened_scrollview || happened_select ||
+                    happened_radio || happened_progress);
+    
+    
+    return(happened);
+}
+
+static struct ui_rectange
+merge_rectangles(struct ui_rectange a, struct ui_rectange b)
+{
+    struct ui_rectange result;
+    
+    int a_xend = a.x + a.width;
+    int b_xend = b.x + b.width;
+    
+    int a_yend = a.y + a.height;
+    int b_yend = b.y + b.height;
+    
+    result.x = (a.x < b.x ? a.x : b.x);
+    result.y = (a.y < b.y ? a.y : b.y);
+    result.width = (a_xend > b_xend ? a_xend : b_xend) - result.x;
+    result.height = (a_yend > b_yend ? a_yend : b_yend) - result.y;
+    
+    return(result);
 }
 
 int main(int argc, char **argv)
@@ -181,7 +212,9 @@ int main(int argc, char **argv)
         mouse_halftransitions = 0;
         type_buffer_size = 0;
         
+        int expose = 0;
         int only_shm_event = 1;
+        struct ui_rectange expose_rect = { 0 };
         
         while (pending_shm > 0 || XPending(display)) {
             XNextEvent(display, &ev);
@@ -229,13 +262,31 @@ int main(int argc, char **argv)
                 type_buffer[type_buffer_size].ctrl = ctrl_pressed;
                 
                 ++type_buffer_size;
+            } else if (ev.type == Expose) {
+                struct ui_rectange rect;
+                
+                rect.x = ev.xexpose.x;
+                rect.y = ev.xexpose.y;
+                rect.width = ev.xexpose.width;
+                rect.height = ev.xexpose.height;
+                
+                expose_rect = merge_rectangles(expose_rect, rect);
+                
+                ++expose;
             }
         }
         
         if (!only_shm_event) {
             update_widgets(width, height);
-            draw_widgets(vram, width, height);
-            present(width, height);
+            int happened = draw_widgets(vram, width, height);
+            if (happened) {
+                struct ui_rectange window_rect = { 0 };
+                window_rect.width = width;
+                window_rect.height = height;
+                present(window_rect);
+            } else if (expose) {
+                present(expose_rect);
+            }
         }
         
         clock_gettime(CLOCK_MONOTONIC_RAW, &ts);

@@ -382,7 +382,7 @@ update_editview(int height)
                                 editview_text_changed = 1;
                             }
                         } else if (key.symbol == XK_BackSpace) {
-                            if (new_editview_cursor_position == l) {
+                            if (new_editview_cursor_position == l && l > 0) {
                                 editview_text[l - 1] = 0;
                                 editview_text_changed = 1;
                                 --new_editview_cursor_position;
@@ -466,10 +466,80 @@ update_editview(int height)
     return(happened);
 }
 
+static int scrollview_x0;
+static int scrollview_y0;
+static int scrollview_w;
+static int scrollview_h;
+static int scrollview_handle_width;
+static int scrollview_items[] = { 10, 50, 20, 12, 15, 15, 15, 100, 100, 100, 15, 15, 15, 15, 100, 100, 100, 100, 5 };
+static int scrollview_itemcount;
+static int scrollview_scrollbar_width;
+static int scrollview_margin;
+static int scrollview_desired_height;
+
 static int
-update_scrollview()
+update_scrollview(int width)
 {
-    return(0);
+    scrollview_x0 = width / 2 + 100;
+    scrollview_y0 = 10;
+    scrollview_handle_width = 20;
+    scrollview_w = 300;
+    scrollview_h = 500;
+    
+    scrollview_itemcount = sizeof(scrollview_items) / sizeof(scrollview_items[0]);
+    scrollview_scrollbar_width = 20;
+    scrollview_margin = 5;
+    
+    scrollview_desired_height = scrollview_margin;
+    
+    for (int i = 0; i < scrollview_itemcount; ++i) {
+        scrollview_desired_height += scrollview_items[i];
+        scrollview_desired_height += scrollview_margin;
+    }
+    
+    if ((scrollview_x0 <= mouse_x && mouse_x <= scrollview_x0 + scrollview_w) && (scrollview_y0 <= mouse_y && mouse_y <= scrollview_y0 + scrollview_h)) {
+        scrollview_focused = 1;
+    } else {
+        scrollview_focused = 0;
+    }
+    
+    int new_scrollview_offset = scrollview_offset;
+    
+    if (scrollview_focused) {
+        if (mouse_scrolled_down) {
+            new_scrollview_offset += mouse_scroll_speed * mouse_scrolled_down;
+        }
+        
+        if (mouse_scrolled_up) {
+            new_scrollview_offset -= mouse_scroll_speed * mouse_scrolled_up;
+        }
+        
+        if (scrollview_offset < 0) {
+            new_scrollview_offset = 0;
+        }
+        
+        if (scrollview_desired_height > scrollview_h && new_scrollview_offset > scrollview_desired_height - scrollview_h) {
+            new_scrollview_offset = scrollview_desired_height - scrollview_h;
+        }
+        
+        // snapping
+        if (new_scrollview_offset < scrolling_threshold) {
+            new_scrollview_offset = 0;
+        }
+        
+        if (scrollview_desired_height > scrollview_h && scrollview_desired_height - scrollview_h - new_scrollview_offset < scrolling_threshold) {
+            new_scrollview_offset = scrollview_desired_height - scrollview_h;
+        }
+    }
+    
+    int happened = 0;
+    
+    if (new_scrollview_offset != scrollview_offset) {
+        happened = 1;
+        scrollview_offset = new_scrollview_offset;
+    }
+    
+    return(happened);
 }
 
 static int
